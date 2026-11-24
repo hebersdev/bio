@@ -11,8 +11,8 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="bozkurt">
 <meta property="og:description" content=" i like python, js, lol">
-<meta property="og:image" content="bio/avatar.gif">
-<link rel="icon" type="image/gif" href="bio/avatar.gif">
+<meta property="og:image" content="avatar.gif">
+<link rel="icon" type="image/gif" href="avatar.gif">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://cdn.jsdelivr.net/npm/@fontsource-variable/onest@5.3.1/files/onest-latin-wght-normal.woff2">
@@ -606,13 +606,18 @@ input[type="range"]::-moz-range-thumb {
   'use strict';
 
   const REPO = 'hebersdev/bio';
-  const REF = 'main';
-  const MIRRORS = [
-    (file) => `https://cdn.jsdelivr.net/gh/${REPO}@${REF}/${file}`,
-    (file) => `https://raw.githack.com/${REPO}/${REF}/${file}`,
-  ];
+  const CDN_REF = 'dc47d8b';
+  const jsDelivr = (file) => `https://cdn.jsdelivr.net/gh/${REPO}@${CDN_REF}/${file}`;
+  const rawGitHack = (file) => `https://rawcdn.githack.com/${REPO}/${CDN_REF}/${file}`;
+  const local = (file) => file;
+  const assetSources = {
+    'background.mp4': [rawGitHack, local],
+    'avatar.gif': [jsDelivr, rawGitHack, local],
+    'banner.gif': [jsDelivr, rawGitHack, local],
+    'music.gif': [jsDelivr, rawGitHack, local],
+  };
 
-  const MUSIC_URL = 'musica.mp3';
+  const MUSIC_URLS = [rawGitHack('musica.mp3'), local('musica.mp3')];
   const MUSIC_MIME = 'audio/mpeg';
   const FIRST_CHUNK_BYTES = 2_400_000;
   const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
@@ -626,28 +631,29 @@ input[type="range"]::-moz-range-thumb {
   const $ = (id) => document.getElementById(id);
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
-
   const bg = $('bg');
-  const mirrorOf = new WeakMap();
+  const sourceOf = new WeakMap();
 
-  function useMirror(el, index) {
-    mirrorOf.set(el, index);
-    el.src = MIRRORS[index](el.dataset.asset);
+  function useSource(el, index) {
+    const sources = assetSources[el.dataset.asset] || [local];
+    sourceOf.set(el, index);
+    el.src = sources[index](el.dataset.asset);
   }
 
   function loadAsset(el) {
     return new Promise((resolve) => {
       el.addEventListener(el === bg ? 'loadeddata' : 'load', resolve, { once: true });
       el.addEventListener('error', () => {
-        const next = mirrorOf.get(el) + 1;
-        if (next < MIRRORS.length) {
-          useMirror(el, next);
+        const sources = assetSources[el.dataset.asset] || [local];
+        const next = sourceOf.get(el) + 1;
+        if (next < sources.length) {
+          useSource(el, next);
         } else {
           el.classList.add('is-missing');
           resolve();
         }
       });
-      useMirror(el, 0);
+      useSource(el, 0);
     });
   }
 
@@ -875,7 +881,7 @@ input[type="range"]::-moz-range-thumb {
     const at = phase === 'partial' ? audio.currentTime || 0 : 0;
     phase = 'native';
     splicing = true;
-    audio.src = MUSIC_URL;
+    audio.src = MUSIC_URLS[1];
     audio.addEventListener('loadedmetadata', () => {
       if (at) audio.currentTime = at;
       splicing = false;
@@ -888,7 +894,7 @@ input[type="range"]::-moz-range-thumb {
   async function loadMusic() {
     phase = 'loading';
     try {
-      const res = await fetch(MUSIC_URL);
+      const res = await fetch(MUSIC_URLS[0]);
       if (!res.ok || !res.body) throw new Error(`music request failed (${res.status})`);
       const reader = res.body.getReader();
       const parts = [];
